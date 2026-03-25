@@ -1,3 +1,4 @@
+import React from 'react';
 import { createServiceClient } from '@/lib/supabase/service';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
@@ -24,11 +25,12 @@ export default async function TenantsPage() {
 
   if (!user) redirect('/login');
 
-  const { data: userData } = await supabase
+  const { data: userDataRaw } = await supabase
     .from('users')
     .select('role')
     .eq('id', user.id)
     .single();
+  const userData = userDataRaw as { role: string } | null;
 
   if (userData?.role !== 'saas_admin') redirect('/dashboard');
 
@@ -68,13 +70,13 @@ export default async function TenantsPage() {
     );
   }
 
-  function getTenantStatus(tenant: { is_active: boolean; waba_id: string }) {
+  function getTenantStatus(tenant: { is_active: boolean; waba_id: string | null }) {
     if (!tenant.is_active) return 'inactive';
     if (!tenant.waba_id) return 'pending';
     return 'active';
   }
 
-  const statusBadge: Record<string, JSX.Element> = {
+  const statusBadge: Record<string, React.ReactElement> = {
     active: (
       <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
         Activo

@@ -21,11 +21,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     redirect('/login');
   }
 
-  const { data: userData } = await supabase
+  const { data: userDataRaw } = await supabase
     .from('users')
     .select('role, full_name')
     .eq('id', user.id)
     .single();
+  const userData = userDataRaw as { role: string; full_name?: string | null } | null;
 
   if (userData?.role !== 'saas_admin') {
     redirect('/dashboard');

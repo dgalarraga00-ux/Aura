@@ -27,11 +27,12 @@ export default async function TenantDetailPage({ params }: Props) {
 
   if (!user) redirect('/login');
 
-  const { data: userData } = await supabase
+  const { data: userDataRaw } = await supabase
     .from('users')
     .select('role')
     .eq('id', user.id)
     .single();
+  const userData = userDataRaw as { role: string } | null;
 
   if (userData?.role !== 'saas_admin') redirect('/dashboard');
 

@@ -37,11 +37,12 @@ export async function POST(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { data: userData } = await supabase
+  const { data: userDataRaw } = await supabase
     .from('users')
     .select('role')
     .eq('id', user.id)
     .single();
+  const userData = userDataRaw as { role: string } | null;
 
   if (userData?.role !== 'saas_admin') {
     return NextResponse.json({ error: 'Forbidden — saas_admin required' }, { status: 403 });
