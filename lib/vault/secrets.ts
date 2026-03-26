@@ -81,13 +81,16 @@ export async function getDecryptedToken(tenantId: string, vaultSecretId: string)
   }
 
   const vaultRes = await fetch(
-    `${supabaseUrl}/rest/v1/vault/decrypted_secrets?id=eq.${encodeURIComponent(vaultSecretId)}&select=decrypted_secret`,
+    `${supabaseUrl}/rest/v1/rpc/get_vault_secret`,
     {
+      method: 'POST',
       headers: {
         Authorization: `Bearer ${serviceKey}`,
         apikey: serviceKey,
-        Accept: 'application/vnd.pgrst.object+json', // single-row response
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
       },
+      body: JSON.stringify({ p_secret_id: vaultSecretId }),
     }
   );
 
@@ -97,13 +100,11 @@ export async function getDecryptedToken(tenantId: string, vaultSecretId: string)
     );
   }
 
-  const vaultData = (await vaultRes.json()) as { decrypted_secret: string } | null;
+  const token = (await vaultRes.json()) as string | null;
 
-  if (!vaultData?.decrypted_secret) {
+  if (!token) {
     throw new Error(`Vault secret not found for tenant ${tenantId} / id ${vaultSecretId}`);
   }
-
-  const token = vaultData.decrypted_secret;
 
   // 3. Cache in Redis with TTL
   await redis.set(cacheKey, token, { ex: VAULT_TOKEN_TTL_SECONDS });
