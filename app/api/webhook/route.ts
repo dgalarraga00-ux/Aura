@@ -187,7 +187,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         await redis.set(tenantActiveKey(tenantId), isActiveRaw, { ex: 60 });
       }
 
-      if (isActiveRaw !== '1') {
+      if (String(isActiveRaw) !== '1') {
         // Return 200 so Meta does NOT retry for inactive tenants
         console.info(`[webhook][POST] Tenant ${tenantId} inactive — dropping silently`);
         return NextResponse.json({ status: 'ok' }, { status: 200 });
