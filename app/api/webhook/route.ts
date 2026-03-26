@@ -144,6 +144,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
       if (cachedTenantId) {
         tenantId = cachedTenantId;
+        console.info(`[webhook][DEBUG] step3 cache HIT tenantId=${tenantId}`);
       } else {
         // Cache miss — query DB
         const { data: tenant, error } = await supabase
@@ -151,6 +152,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           .select('id, is_active')
           .eq('phone_number_id', phone_number_id)
           .single();
+
+        console.info(`[webhook][DEBUG] step3 DB: id=${tenant?.id} is_active=${tenant?.is_active} err=${error?.message}`);
 
         if (error || !tenant) {
           console.warn(`[webhook][POST] No tenant for phone_number_id=${phone_number_id}`);
@@ -168,6 +171,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
       // ── 4. Circuit Breaker: is_active ──────────────────────────────────────
       let isActiveRaw = await redis.get<string>(tenantActiveKey(tenantId));
+      console.info(`[webhook][DEBUG] step4 isActiveRaw=${JSON.stringify(isActiveRaw)} type=${typeof isActiveRaw}`);
 
       if (isActiveRaw === null) {
         // Cache miss — query DB
@@ -177,6 +181,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           .eq('id', tenantId)
           .single();
 
+        console.info(`[webhook][DEBUG] step4 DB: is_active=${tenant?.is_active}`);
         const active = tenant?.is_active ?? false;
         isActiveRaw = active ? '1' : '0';
         await redis.set(tenantActiveKey(tenantId), isActiveRaw, { ex: 60 });
