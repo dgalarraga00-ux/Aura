@@ -3,7 +3,7 @@ import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import ResolveHandoffButton from './ResolveHandoffButton';
 import AgentReplyInput from './AgentReplyInput';
-import type { SupabaseClient } from '@supabase/supabase-js';
+type SupabaseServerClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -33,7 +33,7 @@ interface MessageRow {
 }
 
 async function fetchConversation(
-  supabase: SupabaseClient,
+  supabase: SupabaseServerClient,
   id: string
 ): Promise<ConvWithContact> {
   const { data: rawConversation, error: convError } = await supabase
@@ -76,7 +76,7 @@ function MessageBubble({ msg }: { msg: MessageRow }) {
 }
 
 async function fetchMessages(
-  supabase: SupabaseClient,
+  supabase: SupabaseServerClient,
   conversationId: string
 ): Promise<MessageRow[]> {
   const { data: rawMessages } = await supabase
