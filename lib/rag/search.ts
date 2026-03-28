@@ -1,10 +1,8 @@
 import { embedText } from '@/lib/llm/client';
 import { createServiceClient } from '@/lib/supabase/service';
 
-// Minimum cosine similarity score to include a chunk in results.
-// Cosine distance (<=>) ranges 0–2; similarity = 1 - distance.
-// score >= 0.75 means distance <= 0.25
-const RAG_SCORE_THRESHOLD = 0.5;
+// Default minimum cosine similarity score when tenant has no override configured.
+const DEFAULT_RAG_SCORE_THRESHOLD = 0.5;
 
 export interface RagChunk {
   id: string;
@@ -27,15 +25,17 @@ export interface RagChunk {
  * - Filters results to score >= 0.75 (cosine similarity, not distance)
  * - Returns chunks ordered by score descending
  *
- * @param query    - The user's message text to search for
- * @param tenantId - UUID of the tenant — REQUIRED, never empty
- * @param limit    - Maximum number of chunks to return (default 5)
- * @returns Array of RagChunk with score >= 0.75, ordered by relevance
+ * @param query     - The user's message text to search for
+ * @param tenantId  - UUID of the tenant — REQUIRED, never empty
+ * @param limit     - Maximum number of chunks to return (default 5)
+ * @param threshold - Minimum cosine similarity score (0–1). Defaults to DEFAULT_RAG_SCORE_THRESHOLD
+ * @returns Array of RagChunk with score >= threshold, ordered by relevance
  */
 export async function semanticSearch(
   query: string,
   tenantId: string,
-  limit = 5
+  limit = 5,
+  threshold?: number
 ): Promise<RagChunk[]> {
   // ── MANDATORY TENANT GUARD ────────────────────────────────────────────────
   if (!tenantId || tenantId.trim() === '') {
@@ -64,11 +64,11 @@ export async function semanticSearch(
   const embeddingString = `[${embedding.join(',')}]`;
 
   const { data, error } = await supabase.rpc('match_knowledge_chunks', {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    query_embedding: embeddingString as any,
+    // PostgREST does not accept number[] for vector(1536); cast through unknown to string.
+    query_embedding: embeddingString as unknown as string,
     match_tenant_id: tenantId,
     match_count: limit,
-    match_threshold: RAG_SCORE_THRESHOLD,
+    match_threshold: threshold ?? DEFAULT_RAG_SCORE_THRESHOLD,
   });
 
   if (error) {
