@@ -59,8 +59,12 @@ export async function semanticSearch(
   // Returns: id, source_id, chunk_index, content, similarity (1 - cosine_distance)
   const supabase = createServiceClient();
 
+  // PostgREST does not auto-cast JSON arrays to vector(1536).
+  // Passing as a bracketed string forces pgvector's text → vector cast.
+  const embeddingString = `[${embedding.join(',')}]`;
+
   const { data, error } = await supabase.rpc('match_knowledge_chunks', {
-    query_embedding: embedding,
+    query_embedding: embeddingString,
     match_tenant_id: tenantId,
     match_count: limit,
     match_threshold: RAG_SCORE_THRESHOLD,
