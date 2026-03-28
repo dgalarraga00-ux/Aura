@@ -8,6 +8,9 @@ import {
 import { publishMessage } from '@/lib/qstash/client';
 import { MessageAdapter } from '@/lib/adapters/MessageAdapter';
 import { WebhookVerifySchema, WebhookPayloadSchema } from '@/lib/validators/webhook';
+import type { z } from 'zod';
+
+type WebhookChange = z.infer<typeof WebhookPayloadSchema>['entry'][number]['changes'][number];
 import type { WorkerJob } from '@/types/messages';
 import { validateHmac } from '@/lib/webhook/hmac';
 import { resolveTenantId } from '@/lib/webhook/tenant';
@@ -41,7 +44,7 @@ function buildWorkerJob(standardMsg: ReturnType<typeof MessageAdapter.normalize>
  * Returns NextResponse to short-circuit (rate limit or queue error), or null to continue.
  */
 async function processChange(
-  change: { value: { metadata: { phone_number_id: string }; messages?: { id: string; from: string }[] } },
+  change: WebhookChange,
   tenantId: string,
   redis: ReturnType<typeof getRedisClient>,
   supabase: ReturnType<typeof createServiceClient>
