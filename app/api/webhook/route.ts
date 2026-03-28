@@ -46,8 +46,7 @@ function buildWorkerJob(standardMsg: ReturnType<typeof MessageAdapter.normalize>
 async function processChange(
   change: WebhookChange,
   tenantId: string,
-  redis: ReturnType<typeof getRedisClient>,
-  supabase: ReturnType<typeof createServiceClient>
+  redis: ReturnType<typeof getRedisClient>
 ): Promise<NextResponse | null> {
   const { value } = change;
 
@@ -167,7 +166,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       if (!change.value.messages || change.value.messages.length === 0) continue;
       const tenantResult = await resolveTenantId(change.value.metadata.phone_number_id, redis, supabase);
       if (tenantResult instanceof NextResponse) return tenantResult;
-      const shortCircuit = await processChange(change, tenantResult, redis, supabase);
+      const shortCircuit = await processChange(change, tenantResult, redis);
       if (shortCircuit) return shortCircuit;
     }
   }
