@@ -105,7 +105,14 @@ async function fetchJobAndSource(
     throw new Error(`Knowledge source not found for job ${jobId}`);
   }
 
-  return { ...source, sourceId: source.id };
+  return {
+    id: source.id,
+    source_type: source.source_type,
+    storage_path: source.storage_path ?? null,
+    source_url: source.source_url ?? null,
+    raw_text: source.raw_text ?? null,
+    sourceId: source.id,
+  };
 }
 
 /** Mark a job as failed with an error message. */
