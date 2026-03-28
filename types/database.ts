@@ -264,6 +264,7 @@ export type Database = {
           source_type: 'pdf' | 'url' | 'csv' | 'text';
           storage_path: string | null;
           source_url: string | null;
+          raw_text: string | null;
           chunk_count: number;
           created_at: string;
         };
@@ -274,6 +275,7 @@ export type Database = {
           source_type: 'pdf' | 'url' | 'csv' | 'text';
           storage_path?: string | null;
           source_url?: string | null;
+          raw_text?: string | null;
           chunk_count?: number;
           created_at?: string;
         };
@@ -284,6 +286,7 @@ export type Database = {
           source_type?: 'pdf' | 'url' | 'csv' | 'text';
           storage_path?: string | null;
           source_url?: string | null;
+          raw_text?: string | null;
           chunk_count?: number;
           created_at?: string;
         };
