@@ -4,7 +4,7 @@ import { createServiceClient } from '@/lib/supabase/service';
 // Minimum cosine similarity score to include a chunk in results.
 // Cosine distance (<=>) ranges 0–2; similarity = 1 - distance.
 // score >= 0.75 means distance <= 0.25
-const RAG_SCORE_THRESHOLD = 0.75;
+const RAG_SCORE_THRESHOLD = 0.5;
 
 export interface RagChunk {
   id: string;
