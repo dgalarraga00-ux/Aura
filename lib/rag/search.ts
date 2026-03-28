@@ -64,7 +64,8 @@ export async function semanticSearch(
   const embeddingString = `[${embedding.join(',')}]`;
 
   const { data, error } = await supabase.rpc('match_knowledge_chunks', {
-    query_embedding: embeddingString,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    query_embedding: embeddingString as any,
     match_tenant_id: tenantId,
     match_count: limit,
     match_threshold: RAG_SCORE_THRESHOLD,
