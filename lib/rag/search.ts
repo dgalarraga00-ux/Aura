@@ -20,22 +20,24 @@ export interface RagChunk {
  * Throws immediately if tenantId is empty or missing.
  *
  * Implementation:
- * - Generates a 1536-dim embedding of the query via text-embedding-3-small
+ * - Generates a 1536-dim embedding via text-embedding-3-small (uses hydeQuery if provided)
  * - Calls a Supabase RPC `match_knowledge_chunks` that uses pgvector's `<=>` (cosine distance)
- * - Filters results to score >= 0.75 (cosine similarity, not distance)
+ * - Filters results to score >= threshold (cosine similarity, 0–1)
  * - Returns chunks ordered by score descending
  *
- * @param query     - The user's message text to search for
+ * @param query     - The user's original message text (used for guard checks)
  * @param tenantId  - UUID of the tenant — REQUIRED, never empty
  * @param limit     - Maximum number of chunks to return (default 5)
  * @param threshold - Minimum cosine similarity score (0–1). Defaults to DEFAULT_RAG_SCORE_THRESHOLD
+ * @param hydeQuery - Optional HyDE-transformed query to embed instead of the raw query
  * @returns Array of RagChunk with score >= threshold, ordered by relevance
  */
 export async function semanticSearch(
   query: string,
   tenantId: string,
   limit = 5,
-  threshold?: number
+  threshold?: number,
+  hydeQuery?: string
 ): Promise<RagChunk[]> {
   // ── MANDATORY TENANT GUARD ────────────────────────────────────────────────
   if (!tenantId || tenantId.trim() === '') {
@@ -47,8 +49,8 @@ export async function semanticSearch(
     return [];
   }
 
-  // ── Generate query embedding ───────────────────────────────────────────────
-  const embedding = await embedText(query);
+  // ── Generate query embedding (HyDE: use hypothetical answer if provided) ───
+  const embedding = await embedText(hydeQuery ?? query);
 
   // ── Execute pgvector cosine similarity search via Supabase RPC ────────────
   // The RPC `match_knowledge_chunks` is defined in the DB migration and accepts:

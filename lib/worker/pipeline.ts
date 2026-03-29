@@ -1,5 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { semanticSearch, type RagChunk } from '@/lib/rag/search';
+import { hydeTransform } from '@/lib/rag/hyde';
+import { rerankChunks } from '@/lib/rag/reranker';
 import { getRedisClient, ragScoreCounterKey } from '@/lib/redis/client';
 import { sendTextMessage } from '@/lib/meta/api';
 import { buildSystemPrompt, getConversationHistory, chatWithTools, type ChatMessage } from '@/lib/llm/chat';
@@ -38,7 +40,9 @@ export async function runRagSearch(
   messageExternalId: string,
   botConfig: BotConfig
 ): Promise<RagResult> {
-  const chunks = await semanticSearch(effectiveText, tenantId, 5, botConfig.rag_score_threshold ?? 0.5);
+  const hydeQuery = await hydeTransform(effectiveText, { language: botConfig.language });
+  const rawChunks = await semanticSearch(effectiveText, tenantId, 5, botConfig.rag_score_threshold ?? 0.5, hydeQuery);
+  const chunks = rawChunks.length > 0 ? await rerankChunks(effectiveText, rawChunks) : rawChunks;
   const score = chunks[0]?.score ?? 0;
   const redis = getRedisClient();
   const counterKey = ragScoreCounterKey(conversationId);
