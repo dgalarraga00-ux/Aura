@@ -32,9 +32,10 @@ async function executeVectorSearch(
   threshold: number,
   supabase: ReturnType<typeof createServiceClient>
 ): Promise<MatchChunkRow[]> {
-  // PostgREST does not accept number[] for vector(1536); cast through unknown to string.
+  // PostgREST does not auto-cast number[] to vector(1536). Pass as bracketed string
+  // so pgvector's text→vector cast fires. Cast through unknown to satisfy type checker.
   const { data, error } = await supabase.rpc('match_knowledge_chunks', {
-    query_embedding: embeddingString as unknown as string,
+    query_embedding: embeddingString as unknown as number[],
     match_tenant_id: tenantId,
     match_count: limit,
     match_threshold: threshold,
