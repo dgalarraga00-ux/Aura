@@ -1,7 +1,6 @@
 import { embedText } from '@/lib/llm/client';
 import { createServiceClient } from '@/lib/supabase/service';
 
-// Default minimum cosine similarity score when tenant has no override configured.
 const DEFAULT_RAG_SCORE_THRESHOLD = 0.5;
 
 export interface RagChunk {
@@ -12,25 +11,76 @@ export interface RagChunk {
   score: number;
 }
 
+interface MatchChunkRow {
+  id: string;
+  source_id: string;
+  chunk_index: number;
+  content: string;
+  similarity: number;
+}
+
+interface ParentChunkRow {
+  id: string;
+  content: string;
+}
+
+/** Execute the pgvector cosine similarity RPC and return typed rows. */
+async function executeVectorSearch(
+  embeddingString: string,
+  tenantId: string,
+  limit: number,
+  threshold: number,
+  supabase: ReturnType<typeof createServiceClient>
+): Promise<MatchChunkRow[]> {
+  // PostgREST does not accept number[] for vector(1536); cast through unknown to string.
+  const { data, error } = await supabase.rpc('match_knowledge_chunks', {
+    query_embedding: embeddingString as unknown as string,
+    match_tenant_id: tenantId,
+    match_count: limit,
+    match_threshold: threshold,
+  });
+  if (error) throw new Error(`RAG vector search failed: ${error.message}`);
+  return (data as MatchChunkRow[] | null) ?? [];
+}
+
 /**
- * Perform a semantic search over the knowledge base for a given tenant.
+ * Replace each child chunk's content with its parent chunk content (if any).
+ * Parents (~1000 chars) provide richer LLM context than children (~250 chars).
+ * Child score is preserved for ranking. Falls back to child content on any error.
+ * SECURITY: tenant_id is enforced inside the get_parent_chunk RPC.
+ */
+async function enrichWithParentContent(
+  chunks: RagChunk[],
+  tenantId: string,
+  supabase: ReturnType<typeof createServiceClient>
+): Promise<RagChunk[]> {
+  return Promise.all(
+    chunks.map(async (chunk) => {
+      try {
+        const { data } = await supabase.rpc('get_parent_chunk', {
+          p_chunk_id: chunk.id,
+          p_tenant_id: tenantId,
+        });
+        const parent = (data as ParentChunkRow[] | null)?.[0];
+        if (!parent?.content) return chunk;
+        return { ...chunk, content: parent.content };
+      } catch {
+        return chunk;
+      }
+    })
+  );
+}
+
+/**
+ * Semantic search over the tenant's knowledge base.
  *
- * SECURITY: tenantId filter is NON-NEGOTIABLE.
- * Executing this query without tenant isolation is a data leak.
- * Throws immediately if tenantId is empty or missing.
+ * SECURITY: tenantId filter is NON-NEGOTIABLE. Throws if empty.
  *
- * Implementation:
- * - Generates a 1536-dim embedding via text-embedding-3-small (uses hydeQuery if provided)
- * - Calls a Supabase RPC `match_knowledge_chunks` that uses pgvector's `<=>` (cosine distance)
- * - Filters results to score >= threshold (cosine similarity, 0–1)
- * - Returns chunks ordered by score descending
- *
- * @param query     - The user's original message text (used for guard checks)
+ * @param query     - User's original message (used for guard + fallback embedding)
  * @param tenantId  - UUID of the tenant — REQUIRED, never empty
- * @param limit     - Maximum number of chunks to return (default 5)
- * @param threshold - Minimum cosine similarity score (0–1). Defaults to DEFAULT_RAG_SCORE_THRESHOLD
- * @param hydeQuery - Optional HyDE-transformed query to embed instead of the raw query
- * @returns Array of RagChunk with score >= threshold, ordered by relevance
+ * @param limit     - Max chunks to return (default 5)
+ * @param threshold - Min cosine similarity 0–1 (default DEFAULT_RAG_SCORE_THRESHOLD)
+ * @param hydeQuery - Optional HyDE-transformed query to embed instead of raw query
  */
 export async function semanticSearch(
   query: string,
@@ -39,54 +89,25 @@ export async function semanticSearch(
   threshold?: number,
   hydeQuery?: string
 ): Promise<RagChunk[]> {
-  // ── MANDATORY TENANT GUARD ────────────────────────────────────────────────
-  if (!tenantId || tenantId.trim() === '') {
-    throw new Error('tenant_id required for vector search');
-  }
+  if (!tenantId || tenantId.trim() === '') throw new Error('tenant_id required for vector search');
+  if (!query || query.trim() === '') return [];
 
-  // Skip search if there is nothing to search for
-  if (!query || query.trim() === '') {
-    return [];
-  }
-
-  // ── Generate query embedding (HyDE: use hypothetical answer if provided) ───
   const embedding = await embedText(hydeQuery ?? query);
-
-  // ── Execute pgvector cosine similarity search via Supabase RPC ────────────
-  // The RPC `match_knowledge_chunks` is defined in the DB migration and accepts:
-  //   query_embedding vector(1536)
-  //   match_tenant_id uuid
-  //   match_count     int
-  //   match_threshold float (cosine similarity, 0–1)
-  // Returns: id, source_id, chunk_index, content, similarity (1 - cosine_distance)
+  const embeddingString = `[${embedding.join(',')}]`;
   const supabase = createServiceClient();
 
-  // PostgREST does not auto-cast JSON arrays to vector(1536).
-  // Passing as a bracketed string forces pgvector's text → vector cast.
-  const embeddingString = `[${embedding.join(',')}]`;
+  const rows = await executeVectorSearch(
+    embeddingString, tenantId, limit, threshold ?? DEFAULT_RAG_SCORE_THRESHOLD, supabase
+  );
+  if (rows.length === 0) return [];
 
-  const { data, error } = await supabase.rpc('match_knowledge_chunks', {
-    // PostgREST does not accept number[] for vector(1536); cast through unknown to string.
-    query_embedding: embeddingString as unknown as string,
-    match_tenant_id: tenantId,
-    match_count: limit,
-    match_threshold: threshold ?? DEFAULT_RAG_SCORE_THRESHOLD,
-  });
-
-  if (error) {
-    throw new Error(`RAG vector search failed: ${error.message}`);
-  }
-
-  if (!data || data.length === 0) {
-    return [];
-  }
-
-  // ── Map RPC result to RagChunk ─────────────────────────────────────────────
-  return data.map((row) => ({
+  const childChunks: RagChunk[] = rows.map((row) => ({
     id: row.id,
     sourceId: row.source_id,
     chunkIndex: row.chunk_index,
     content: row.content,
     score: row.similarity,
   }));
+
+  return enrichWithParentContent(childChunks, tenantId, supabase);
 }
