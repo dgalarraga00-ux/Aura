@@ -67,7 +67,7 @@ export async function setupMessageRecord(
   job: WorkerJob
 ): Promise<SetupResult> {
   const { tenantId, contactPhone, contactName, messageExternalId, type, text, mediaUrl, mediaMimeType } = job;
-  const contactId = await upsertContact(supabase, tenantId, contactPhone, contactName);
+  const contactId = await upsertContact(supabase, tenantId, contactPhone, contactName ?? undefined);
   const conversationId = await resolveConversation(supabase, tenantId, contactId);
   const dbType = type as 'text' | 'audio' | 'image' | 'video' | 'document' | 'unknown';
   const { data: rows, error } = await supabase
