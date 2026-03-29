@@ -309,6 +309,8 @@ export type Database = {
           content: string;
           embedding: number[] | null;
           metadata: Json;
+          parent_chunk_id: string | null;
+          chunk_type: string;
           created_at: string;
         };
         Insert: {
@@ -319,6 +321,8 @@ export type Database = {
           content: string;
           embedding?: number[] | null;
           metadata?: Json;
+          parent_chunk_id?: string | null;
+          chunk_type?: string;
           created_at?: string;
         };
         Update: {
@@ -329,6 +333,8 @@ export type Database = {
           content?: string;
           embedding?: number[] | null;
           metadata?: Json;
+          parent_chunk_id?: string | null;
+          chunk_type?: string;
           created_at?: string;
         };
         Relationships: [
@@ -468,6 +474,16 @@ export type Database = {
           chunk_index: number;
           content: string;
           similarity: number;
+        }>;
+      };
+      get_parent_chunk: {
+        Args: {
+          p_chunk_id: string;
+          p_tenant_id: string;
+        };
+        Returns: Array<{
+          id: string;
+          content: string;
         }>;
       };
     };
